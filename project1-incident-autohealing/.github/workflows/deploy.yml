@@ -1,0 +1,37 @@
+name: Deploy AIOps Incident Handler
+
+on:
+  push:
+    branches: [main]
+    paths: [project1-incident-autohealing/**]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r project1-incident-autohealing/requirements.txt
+      - run: pytest project1-incident-autohealing/tests/ -v
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Deploy Bicep
+        run: |
+          az deployment group create \
+            --resource-group rg-aiops-dev \
+            --template-file project1-incident-autohealing/bicep/main.bicep \
+            --parameters environment=dev alertEmail=${{ secrets.ALERT_EMAIL }}
+      - name: Deploy Function App
+        uses: Azure/functions-action@v1
+        with:
+          app-name: func-aiops-dev
+          package: project1-incident-autohealing/
